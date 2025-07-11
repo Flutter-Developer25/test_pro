@@ -217,7 +217,11 @@ class _EducationScreenState extends State<EducationScreen> {
       ),
       value: value.isEmpty ? null : value,
       items: years.map((year) => DropdownMenuItem(value: year, child: Text(year))).toList(),
-      onChanged: (va){},
+      onChanged: (va) {
+        if (va != null) {
+          onChanged(va);
+        }
+      },
     );
   }
 }
