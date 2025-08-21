@@ -1,6 +1,9 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:pdf/pdf.dart';
+import 'package:printing/printing.dart';
 
 void main() => runApp(const MaterialApp(home: ResumeFormScreen()));
 
@@ -14,6 +17,7 @@ class ResumeFormScreen extends StatefulWidget {
 class _ResumeFormScreenState extends State<ResumeFormScreen> {
   final Map<String, String> personalInfo = {};
   final List<Map<String, dynamic>> educationList = [];
+  final List<Map<String, dynamic>> experienceList = [];
 
   final _personalFormKey = GlobalKey<FormState>();
 
@@ -26,6 +30,14 @@ class _ResumeFormScreenState extends State<ResumeFormScreen> {
     'endYear': '',
     'endMonth': '',
     'isOngoing': false,
+  };
+  Map<String, dynamic> currentExp = {
+    'company': '',
+    'role': '',
+    'startYear': '',
+    'endYear': '',
+    'isOngoing': false,
+    'description': '',
   };
 
   void _saveEducation() {
@@ -50,13 +62,38 @@ class _ResumeFormScreenState extends State<ResumeFormScreen> {
     });
   }
 
-  Widget _textField(String label, String key, {Map<String, dynamic>? data, TextInputType type = TextInputType.text, int? maxLength}) {
+  void _saveExperience() {
+    if (currentExp['company'].isEmpty || currentExp['role'].isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill in at least Company and Role')),
+      );
+      return;
+    }
+    setState(() {
+      experienceList.add({...currentExp});
+      currentExp = {
+        'company': '',
+        'role': '',
+        'startYear': '',
+        'endYear': '',
+        'isOngoing': false,
+        'description': '',
+      };
+    });
+  }
+
+  Widget _textField(String label, String key,
+      {Map<String, dynamic>? data,
+      TextInputType type = TextInputType.text,
+      int? maxLength,
+      int maxLines = 1}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: TextFormField(
         initialValue: data?[key] ?? '',
         keyboardType: type,
         maxLength: maxLength,
+        maxLines: maxLines,
         decoration: InputDecoration(
           labelText: label,
           border: const OutlineInputBorder(),
@@ -155,6 +192,161 @@ class _ResumeFormScreenState extends State<ResumeFormScreen> {
     );
   }
 
+  Widget _experienceSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle("Experience"),
+        Center(
+          child: Wrap(
+            spacing: 20,
+            runSpacing: 10,
+            children: [
+              SizedBox(width:400, child: _textField('Company', 'company', data: currentExp)),
+              SizedBox(width:400, child: _textField('Role', 'role', data: currentExp)),
+              SizedBox(width:250, child: _textField('Start Year', 'startYear', maxLength: 4, type: TextInputType.number, data: currentExp)),
+              if (!currentExp['isOngoing'])
+                SizedBox(width:250, child: _textField('End Year', 'endYear', maxLength: 4, type: TextInputType.number, data: currentExp)),
+              SizedBox(width:250,
+                child: Row(
+                  children: [
+                    Checkbox(
+                      value: currentExp['isOngoing'],
+                      onChanged: (val) => setState(() => currentExp['isOngoing'] = val!),
+                    ),
+                    const Text('Ongoing'),
+                  ],
+                ),
+              ),
+              SizedBox(width:400, child: _textField('Description', 'description', data: currentExp, maxLines: 3)),
+            ],
+          ),
+        ),
+        Center(
+          child: ElevatedButton.icon(
+            onPressed: _saveExperience,
+            icon: const Icon(Icons.save, color: Colors.white),
+            label: const Text('Save Experience', style: TextStyle(color: Colors.white)),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
+          ),
+        ),
+        const Divider(),
+        ...experienceList.map((exp) {
+          final period = exp['isOngoing']
+              ? '${exp['startYear']} - Present'
+              : '${exp['startYear']} - ${exp['endYear']}';
+          return ListTile(
+            title: Text(exp['company']),
+            subtitle: Text('${exp['role']} ($period)'),
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _skillsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle('Skills'),
+        _textField('List your skills separated by commas', 'skills',
+            type: TextInputType.text, maxLines: 3),
+      ],
+    );
+  }
+
+  Future<void> _generatePdf() async {
+    final doc = pw.Document();
+
+    doc.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        build: (context) {
+          return pw.Padding(
+            padding: const pw.EdgeInsets.all(24),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                if (personalInfo['name'] != null)
+                  pw.Text(personalInfo['name']!,
+                      style: pw.TextStyle(
+                          fontSize: 24, fontWeight: pw.FontWeight.bold)),
+                pw.SizedBox(height: 8),
+                if (personalInfo['email'] != null)
+                  pw.Text('Email: ${personalInfo['email']}'),
+                if (personalInfo['phone'] != null)
+                  pw.Text('Phone: ${personalInfo['phone']}'),
+                if (personalInfo['linkedin'] != null)
+                  pw.Text('LinkedIn: ${personalInfo['linkedin']}'),
+                if (personalInfo['github'] != null)
+                  pw.Text('GitHub: ${personalInfo['github']}'),
+                if (personalInfo['portfolio'] != null)
+                  pw.Text('Portfolio: ${personalInfo['portfolio']}'),
+                pw.SizedBox(height: 16),
+                if (personalInfo['skills'] != null)
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text('Skills',
+                          style: pw.TextStyle(
+                              fontSize: 18, fontWeight: pw.FontWeight.bold)),
+                      pw.Text(personalInfo['skills']!),
+                      pw.SizedBox(height: 16),
+                    ],
+                  ),
+                if (educationList.isNotEmpty)
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text('Education',
+                          style: pw.TextStyle(
+                              fontSize: 18, fontWeight: pw.FontWeight.bold)),
+                      ...educationList.map((e) {
+                        final period = e['isOngoing']
+                            ? '${e['startMonth']}/${e['startYear']} - Present'
+                            : '${e['startMonth']}/${e['startYear']} - ${e['endMonth']}/${e['endYear']}';
+                        return pw.Padding(
+                          padding: const pw.EdgeInsets.symmetric(vertical: 4),
+                          child: pw.Text('${e['course']} - ${e['college']} ($period)'),
+                        );
+                      }),
+                      pw.SizedBox(height: 16),
+                    ],
+                  ),
+                if (experienceList.isNotEmpty)
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text('Experience',
+                          style: pw.TextStyle(
+                              fontSize: 18, fontWeight: pw.FontWeight.bold)),
+                      ...experienceList.map((e) {
+                        final period = e['isOngoing']
+                            ? '${e['startYear']} - Present'
+                            : '${e['startYear']} - ${e['endYear']}';
+                        return pw.Padding(
+                          padding: const pw.EdgeInsets.symmetric(vertical: 4),
+                          child: pw.Column(
+                            crossAxisAlignment: pw.CrossAxisAlignment.start,
+                            children: [
+                              pw.Text('${e['role']} - ${e['company']} ($period)'),
+                              if (e['description'] != '') pw.Text(e['description']),
+                            ],
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+
+    await Printing.layoutPdf(onLayout: (format) async => doc.save());
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -171,6 +363,16 @@ class _ResumeFormScreenState extends State<ResumeFormScreen> {
                     _personalInfoSection(),
                     const SizedBox(height: 40),
                     _educationSection(),
+                    const SizedBox(height: 40),
+                    _experienceSection(),
+                    const SizedBox(height: 40),
+                    _skillsSection(),
+                    const SizedBox(height: 40),
+                    ElevatedButton(
+                      onPressed: _generatePdf,
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
+                      child: const Text('Generate PDF', style: TextStyle(color: Colors.white)),
+                    ),
                   ],
                 ),
               ),
